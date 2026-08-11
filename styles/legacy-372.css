@@ -1,0 +1,1383 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LEGACY 3.7.2 — CAMADA DE ACABAMENTO
+   Carregada por ÚLTIMO, depois da legacy-371.css. Aqui não se cria estrutura
+   nova: só se corrige o acabamento do que já existe.
+
+   Quatro assuntos, nesta ordem:
+     1. ESCALA      — o painel estava com cara de zoom; tudo desce um degrau.
+     2. SIMETRIA    — raios, alturas, hairlines e alinhamento óptico.
+     3. METAL       — o acabamento das superfícies (tokens vindos do JS).
+     4. TELA        — os fundos do chat e do cabeçalho.
+
+   Os tokens --metal-*, --chat-canvas e --header-canvas NÃO estão escritos
+   aqui: eles são gerados em sidepanel.js (LEGACY-CANVAS-372) a partir da cor
+   que o usuário escolheu. Um fallback acompanha cada uso, porque a folha
+   carrega antes do JS pintar os tokens e um frame sem fundo pisca branco.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══ 0. TIPOGRAFIA DA MARCA ════════════════════════════════════════════════
+   Cracked Bold é a fonte do NOME — e só dele. Ela existe para dar cara própria à
+   marca em cada lugar onde a marca é dita: o cabeçalho, a tela de licença e o
+   rodapé com o nome do revendedor ou do sócio. Nada de interface usa esta
+   fonte: texto de leitura continua em Inter, que é o que se lê bem em 11px.
+
+   Trocar a fonte é mexer em UM lugar: a variável --font-brand logo abaixo.
+   Nenhum seletor cita o nome da família — foi por isso que a troca da Relidux
+   (licença não-comercial, incompatível com um produto vendido) custou duas
+   linhas em vez de uma varredura. Ver docs/CREDITOS.md. */
+@font-face {
+  font-family: 'Cracked Bold';
+  src: url('fonts/CrackedBold-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;   /* o nome aparece na hora, com a fonte de reserva */
+}
+
+:root {
+  --font-brand: 'Cracked Bold', 'Vintage Future', 'Inter', system-ui, sans-serif;
+
+  /* ── 1. ESCALA ────────────────────────────────────────────────────────────
+     Uma régua só para toda a interface. Antes cada bloco tinha o seu número
+     solto (10px aqui, 11.5px ali, 9.5px acolá) e o resultado era um painel
+     que nunca parecia assentado. Os degraus seguem ~1.16 de razão: perto o
+     bastante para parecer família, longe o bastante para haver hierarquia. */
+  --t372-micro: 8.5px;    /* etiquetas, contadores */
+  --t372-xs:    9.5px;    /* metadados, rodapés */
+  --t372-sm:    10.5px;   /* rótulos de controle */
+  --t372-md:    11.5px;   /* corpo de texto secundário */
+  --t372-base:  12.5px;   /* corpo de texto */
+  --t372-lg:    14px;     /* títulos de bloco */
+
+  /* Raios em progressão fechada. O erro de simetria mais comum do painel era
+     um card de raio 18 com um botão de raio 9 dentro: a curva interna tem que
+     ser MENOR que a externa menos o respiro, senão as quinas brigam. */
+  --r372-xs: 6px;
+  --r372-sm: 8px;
+  --r372-md: 10px;
+  --r372-lg: 13px;
+  --r372-xl: 16px;
+
+  /* Alturas de controle. Três, e só três — qualquer botão do painel é uma
+     destas. É o que faz linhas diferentes terminarem na mesma altura. */
+  --h372-sm: 24px;
+  --h372-md: 28px;
+  --h372-lg: 34px;
+
+  --gap372-xs: 4px;
+  --gap372-sm: 6px;
+  --gap372-md: 9px;
+  --gap372-lg: 13px;
+
+  /* Curva única de movimento. 144hz não se declara em CSS — o que dá essa
+     sensação é transição curta o bastante para não atrasar a resposta e
+     desaceleração forte o bastante para não parecer linear. */
+  --ease372: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --speed372: 140ms;
+  --speed372-slow: 210ms;
+}
+
+/* ═══ 1. ESCALA — o painel para de parecer com zoom ═════════════════════════
+   A queixa não era "está grande", era "parece ampliado": elementos de chrome
+   (logo, dock, cartões de status) comendo a área onde o trabalho acontece.
+   Tudo abaixo desce um degrau e devolve altura ao chat, sem chegar perto do
+   tamanho em que texto de interface deixa de ser legível. */
+
+/* ── RESPIRO E HIERARQUIA ─────────────────────────────────────────────────
+   O cabeçalho tem duas coisas de importâncias MUITO diferentes: a marca, que
+   é o assunto, e os controles, que são serviço. Quando os dois ficam a 6px um
+   do outro e ambos dentro de caixas, tudo lê com o mesmo peso — que é a
+   definição de hierarquia fraca.
+
+   A correção é de espaço, não de tamanho: os controles ficam colados no topo
+   (é onde se espera chrome de janela), e a marca ganha uma faixa larga só
+   dela embaixo. A distância entre os dois passa a ser maior que a distância
+   dentro de cada grupo — que é a regra que faz o olho entender que são coisas
+   separadas sem precisar de moldura nenhuma. */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 7px 10px 12px;
+  border-radius: var(--r372-lg);
+}
+
+/* A faixa da marca: o respiro vive AQUI, e não no gap do cabeçalho, para que
+   ele não some quando os controles quebrarem para uma segunda linha. */
+html .logo-container {
+  margin-top: 11px;
+  padding-bottom: 1px;
+}
+
+/* ── GEOMETRIA DO CABEÇALHO ────────────────────────────────────────────────
+   A fileira de cima não cabia na largura do painel: BOOST virava "BOO…",
+   LAYOUT virava "LAY…", e os botões acabavam em alturas diferentes porque
+   cada um herdava o padding de um lugar. Truncamento não é escolha de design
+   — é o layout confessando que estourou.
+
+   Três decisões resolvem: os controles podem QUEBRAR para uma segunda linha
+   em vez de espremer; toda a fileira usa uma altura única; e nada trunca. */
+
+html .header__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap372-sm);
+  flex-wrap: wrap;
+  row-gap: var(--gap372-xs);
+}
+
+/* LEGACY-DOTS/LEGACY-AUTOCYCLE (3.7.2): o container ficou vazio quando os
+   pontinhos e o botão de ciclo saíram do HTML. Vazio ele ainda ocuparia a
+   coluna da esquerda e deixaria um vão — some, e a fileira de controles fica
+   com a largura inteira, que é o que resolve o aperto em painel estreito.
+   Descomentar os blocos no HTML devolve tudo: basta remover esta regra. */
+html .header__dots {
+  display: none;
+}
+
+html .header__controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: var(--gap372-xs);
+  gap: var(--gap372-xs);
+}
+
+html .theme-toggles {
+  display: flex;
+  align-items: center;
+  gap: var(--gap372-xs);
+  flex-wrap: nowrap;
+}
+
+/* Altura única para TODO controle do cabeçalho. Era daqui que vinha a
+   impressão de desalinhamento: cinco botões lado a lado com quatro alturas
+   diferentes, cada uma vinda de uma folha.
+
+   Tudo `!important` porque a sidepanel-modern.css fixa `padding` e `max-width`
+   de `.boost-btn` com !important perto do fim do arquivo. Foi exatamente isso
+   que sumiu com os ícones de desprender e baixar: o padding de 10px de lá
+   sobrevivia à minha largura de 24px, sobrava 4px de área útil e o SVG de 14px
+   era espremido até desaparecer. O ícone nunca foi apagado do HTML — ele
+   estava sendo esmagado. */
+html .header__controls .fx-toggle,
+html .header__controls .boost-btn,
+html .header__controls .theme-toggle,
+html .header__controls .mute-btn {
+  height: var(--h372-sm) !important;
+  min-height: var(--h372-sm) !important;
+  max-width: none !important;   /* era o que truncava BOOST em "BOO…" */
+  box-sizing: border-box;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0 !important;
+  padding: 0 7px !important;
+  border-radius: var(--r372-sm) !important;
+  font-size: var(--t372-micro) !important;
+  letter-spacing: 0.05em !important;
+  line-height: 1;
+  white-space: nowrap;   /* rótulo cortado é bug, não estilo */
+  overflow: visible;
+  flex: 0 0 auto;
+}
+
+/* Botão só de ícone é QUADRADO, sem padding nenhum. Um ícone dentro de caixa
+   retangular fica fora de eixo em relação aos botões com texto. */
+html .header__controls .boost-btn--icon {
+  width: var(--h372-sm) !important;
+  min-width: var(--h372-sm) !important;
+  padding: 0 !important;
+}
+
+/* O SVG não pode encolher. Num flex container ele é item flexível e, apertado,
+   o navegador reduz a caixa em vez de deixar transbordar — que é como um
+   ícone "some" sem ninguém ter apagado nada. */
+html .header__controls .boost-btn > svg,
+html .header__controls .fx-toggle > svg,
+html .header__controls .fx-toggle__svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+/* O rótulo do BOOST vinha de uma régua própria e ficava maior que os vizinhos. */
+html .header__controls .boost-label,
+html .header__controls .fx-toggle__copy,
+html .header__controls .fx-toggle__glyph {
+  font-size: var(--t372-micro) !important;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+html .header__controls .boost-icon {
+  width: 12px !important;
+  height: 12px !important;
+  flex: 0 0 auto;
+}
+
+/* Os dois recortes que ainda cortavam texto, cada um escondido numa folha
+   diferente: `.boost-label` tinha `max-width: 34px` (BOOST não cabe em 34px —
+   por isso "BOO…") e `.layout-menu-container .fx-toggle` tinha 62px. */
+html .header__controls .boost-label {
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+html .layout-menu-container .fx-toggle {
+  max-width: none !important;
+}
+
+/* ── A CAIXA DENTRO DA CAIXA ──────────────────────────────────────────────
+   `.theme-toggles` era um contêiner com borda, fundo e sombra próprios,
+   redefinido em DEZ lugares diferentes da sidepanel-modern.css. Duas coisas
+   ruins saíam dele:
+
+   1. `overflow: hidden` — era ELE que cortava "LAYOUT" em "LAYO…". O botão
+      nunca esteve pequeno demais; o pai é que o clipava. Aumentar o botão
+      jamais teria resolvido.
+
+   2. Visualmente, uma moldura dentro da moldura do cabeçalho: duas linhas
+      paralelas disputando a mesma faixa de 24px de altura. É o "encalacrado"
+      — nada respira quando cada grupo traz a própria borda.
+
+   A caixa é dissolvida. O agrupamento passa a ser feito por ESPAÇO e por um
+   fio vertical de 1px, que é o suficiente para o olho separar "ajustes" de
+   "ações" sem acrescentar mais uma linha fechada ao desenho. */
+html .header__controls .theme-toggles {
+  flex: 0 1 auto !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  gap: var(--gap372-xs) !important;
+  position: relative;
+  margin-right: var(--gap372-sm) !important;
+}
+
+/* O fio que separa ajustes de ações. Curto de propósito: ele não encosta em
+   cima nem embaixo, então divide sem fechar nada. */
+html .header__controls .theme-toggles::after {
+  content: '';
+  position: absolute;
+  right: calc(var(--gap372-sm) * -0.5);
+  top: 5px;
+  bottom: 5px;
+  width: 1px;
+  background: linear-gradient(180deg,
+    transparent, rgba(var(--accent-rgb), 0.30), transparent);
+  pointer-events: none;
+}
+
+/* ── FOLGA DOS MENUS SUSPENSOS ─────────────────────────────────────────────
+   O menu de LAYOUT nascia colado no botão e com os itens encostados uns nos
+   outros — "encalacrado". Menu suspenso precisa de três folgas distintas, e
+   faltavam as três: distância até o botão que o abriu, respiro interno até a
+   borda do próprio menu, e espaço entre os itens. */
+html .layout-dropdown-content {
+  margin-top: 10px !important;
+  padding: 7px !important;
+  gap: 6px !important;
+  border-radius: var(--r372-md) !important;
+  align-items: center;
+}
+
+html .layout-dropdown-content > * {
+  margin: 0 !important;
+  flex: 0 0 auto;
+}
+
+html .layout-dropdown-content .theme-toggle,
+html .layout-dropdown-content .mute-btn,
+html .layout-dropdown-content .lang-toggle-btn {
+  height: var(--h372-sm) !important;
+  min-height: var(--h372-sm) !important;
+  padding: 0 8px !important;
+  border-radius: var(--r372-sm) !important;
+  font-size: var(--t372-micro) !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* Os dois seletores de cor são redondos: eles mostram COR, e um círculo lê
+   como amostra de cor enquanto um retângulo lê como mais um botão. */
+html .layout-dropdown-content #theme-toggle-1,
+html .layout-dropdown-content #theme-toggle-2 {
+  width: var(--h372-sm) !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+}
+
+/* A seta que aponta para o botão tem que acompanhar a folga nova, senão fica
+   flutuando no meio do caminho. */
+html .layout-dropdown-content::before {
+  top: -5px !important;
+}
+
+html .header__controls .autocycle-btn,
+html .header__dots .autocycle-btn {
+  width: var(--h372-sm);
+  height: var(--h372-sm);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: var(--r372-sm);
+}
+
+/* Os três pontos ficavam altos em relação à fileira: eles são o único item
+   sem caixa, então precisam da mesma altura para o eixo bater. */
+html .header__dots-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: var(--h372-sm);
+}
+
+/* O bloco do logo é centrado na LARGURA TOTAL do cabeçalho, e não no que
+   sobra da fileira de cima — por isso ele é o próprio contêiner, e não um
+   item espremido entre os controles. */
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 100%;
+}
+
+/* Todo lugar onde a MARCA é dita — no painel e na tela de licença, com a marca
+   própria ou com a do revendedor. `!important` porque a sidepanel-modern.css
+   fixa a família do logo lá no fim do arquivo. */
+html .logo-glitch,
+html .logo-glitch__letter,
+html .logo-devs,
+html .lic-logo-name,
+html .lic-logo-sub,
+html .lic-footer [data-wl="team"],
+html [data-wl="name"],
+html [data-wl="name-upper"] {
+  font-family: var(--font-brand) !important;
+}
+
+.logo-glitch {
+  /* A marca cresce — e o `!important` é o que faz a regra EXISTIR.
+     `sidepanel-cyber.css` declara `.logo-glitch { font-size: 14px !important }`
+     na mesma especificidade (0,1,0). Sem o !important aqui, aquela vence
+     sempre: o `25px` que estava escrito neste lugar nunca chegou a valer, e a
+     marca vinha saindo em 14px o tempo todo. Com o !important, empatam em
+     importância e especificidade, e aí a ordem de carga decide — esta folha é
+     a última. */
+  font-size: 29px !important;
+  letter-spacing: 0.088em;
+  /* O letter-spacing empurra a última letra: sem o recuo do mesmo tamanho a
+     palavra fica visivelmente fora do centro do cabeçalho. */
+  text-indent: 0.088em;
+  line-height: 1.06;
+}
+
+.logo-devs {
+  padding-bottom: 0;
+  font-size: var(--t372-micro);
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  line-height: 1;
+}
+
+.lgy-dock {
+  gap: var(--gap372-xs);
+  padding: 4px;
+  border-radius: var(--r372-md);
+}
+
+.lgy-dock .os-nav__item {
+  min-height: 38px !important;
+  min-width: 56px !important;
+  gap: 2px !important;
+  padding: 5px 3px !important;
+  border-radius: var(--r372-sm) !important;
+  transition: background var(--speed372) var(--ease372),
+              border-color var(--speed372) var(--ease372),
+              color var(--speed372) var(--ease372) !important;
+}
+
+.lgy-dock .os-nav__label {
+  font-size: var(--t372-micro);
+  letter-spacing: 0.05em;
+}
+
+/* Os ícones do dock ficam todos na mesma caixa. O da coroa do Agente VIP
+   nasceu 22px contra 16px dos outros e desalinhava a fileira inteira — a
+   coroa continua maior OPTICAMENTE (ela é mais vazia), mas a caixa é igual. */
+.lgy-dock .os-nav__icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+
+.lgy-dock .os-nav__icon > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.lgy-dock .os-nav__item--vip .os-nav__icon > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.status-card {
+  padding: 5px 7px;
+  border-radius: var(--r372-sm);
+}
+
+#lic-expiry-bar .status-card__value,
+#executions-metric .status-card__value,
+#session-metric .status-card__value {
+  font-size: var(--t372-md);
+}
+
+#lic-expiry-bar .status-card__meta,
+#executions-metric .status-card__meta,
+#session-metric .status-card__meta {
+  font-size: var(--t372-micro);
+}
+
+.chat-quick-actions__btn {
+  height: var(--h372-sm);
+  padding: 0 9px;
+  font-size: var(--t372-sm);
+  border-radius: 999px;
+}
+
+.boost-btn {
+  height: var(--h372-md);
+  border-radius: var(--r372-sm);
+  font-size: var(--t372-sm);
+}
+
+/* ═══ 2. SIMETRIA ══════════════════════════════════════════════════════════
+   O "desconforto" que o painel dava não vinha de um elemento errado — vinha
+   de dezenas quase certos. Um botão 1px mais alto que o vizinho, um raio que
+   não acompanha o do pai, uma borda de 1px virando 1.4px no zoom do sistema.
+   Nada disso se percebe isolado; junto, lê como produto mal acabado. */
+
+/* Hairline de verdade: em telas de densidade alta, `1px` vira uma linha grossa
+   e cinzenta. `0.5px` só é honrado onde o dispositivo tem resolução para isso. */
+@media (min-resolution: 1.5dppx) {
+  .lgy-modal__card,
+  .status-card,
+  .lgy-dock,
+  .header {
+    border-width: 0.5px;
+  }
+}
+
+/* Todo controle clicável responde igual: mesma curva, mesma escala no toque.
+   Consistência de resposta é metade da sensação de produto caro. */
+.lgy-modal__close,
+.chat-quick-actions__btn,
+.boost-btn,
+.lgy-skills__tab,
+.lgy-skills__save,
+.lgy-skills__polish,
+.lgy-skills__mic,
+.lgy-skill__btn {
+  transition: background var(--speed372) var(--ease372),
+              border-color var(--speed372) var(--ease372),
+              color var(--speed372) var(--ease372),
+              transform 90ms var(--ease372);
+}
+
+.lgy-modal__close:active,
+.chat-quick-actions__btn:active,
+.boost-btn:active,
+.lgy-skills__tab:active,
+.lgy-skills__save:active,
+.lgy-skills__polish:active,
+.lgy-skills__mic:active,
+.lgy-skill__btn:active {
+  transform: scale(0.965);
+}
+
+/* Um anel de foco só, em todo o painel. Havia três desenhos diferentes e um
+   trecho sem nenhum — navegar por teclado sumia com o cursor. */
+.lgy-modal__close:focus-visible,
+.chat-quick-actions__btn:focus-visible,
+.boost-btn:focus-visible,
+.lgy-dock .os-nav__item:focus-visible,
+.lgy-skills__tab:focus-visible,
+.lgy-skill__btn:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.55);
+  outline-offset: 2px;
+}
+
+/* Raios em cadeia: o card manda, o que está dentro dele acompanha. */
+.lgy-modal__card { border-radius: var(--r372-xl); }
+.lgy-modal__close {
+  width: var(--h372-md);
+  height: var(--h372-md);
+  border-radius: var(--r372-sm);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 1;
+}
+.lgy-modal__search {
+  height: var(--h372-lg);
+  border-radius: var(--r372-md);
+  font-size: var(--t372-md);
+}
+.lgy-cat { border-radius: var(--r372-md); }
+.lgy-cat__icon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r372-sm);
+  font-size: 14px;
+  display: grid;
+  place-items: center;
+}
+
+/* Texto com letter-spacing alto é sempre desenhado torto pelo navegador: o
+   espaço vai depois da última letra e nunca antes da primeira. Em qualquer
+   elemento centralizado isso vira desalinhamento visível. O recuo devolve
+   metade do espaço para a frente e recentra opticamente. */
+.lgy-modal__eyebrow,
+.status-card__meta,
+.footer__version {
+  text-indent: 0.08em;
+}
+
+/* Números lado a lado precisam de largura fixa por dígito, senão o trio
+   LICENÇA/EXECUÇÕES/SESSÃO treme a cada segundo que o cronômetro anda. */
+#lic-expiry-bar .status-card__value,
+#executions-metric .status-card__value,
+#session-metric .status-card__value,
+.footer__version {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ═══ 3. METAL ═════════════════════════════════════════════════════════════
+   Superfície metálica é preenchimento + lambida de luz + borda de duas caras.
+   O ::after carrega o brilho para que ele não seja herdado pelo conteúdo e
+   fica em `pointer-events: none` — brilho não intercepta clique. */
+
+.status-card,
+.lgy-modal__card,
+.boost-btn,
+.chat-quick-actions__btn,
+.lgy-dock {
+  position: relative;
+  background-image: var(--metal-fill, linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.012)));
+  background-clip: padding-box;
+}
+
+.status-card::after,
+.lgy-modal__card::after,
+.lgy-dock::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--metal-sheen, linear-gradient(120deg, rgba(255,255,255,0.05), transparent 60%));
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* O conteúdo sobe acima do brilho. Sem isto o texto do cartão fica embaixo
+   do verniz e perde contraste. */
+.status-card > *,
+.lgy-modal__card > *,
+.lgy-dock > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* A borda metálica: clara em cima, escura embaixo — o mesmo truque de chapa
+   dobrada. Feita com máscara para não pintar por cima do conteúdo. */
+.status-card::before,
+.lgy-modal__card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--metal-edge, linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.25)));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ═══ 4. TELA — os fundos gerados ══════════════════════════════════════════
+   Desenho em sidepanel.js, aplicação aqui. Os dois vêm da MESMA cor cadastrada
+   no sistema, então trocar de tema (ou entregar um build white-label) repinta
+   os dois sem tocar em CSS. */
+
+/* ── POR QUE ESTAS REGRAS SÃO TÃO PESADAS ────────────────────────────────────
+   Custou uma rodada perdida descobrir: as três superfícies de fundo do painel
+   já eram pintadas com `!important` em outro lugar. `.chat-scroll-shell` e
+   `.header` na sidepanel-modern.css (a folha tem 10 mil linhas e reescreve o
+   próprio começo lá no fim), e `.av-app` — a tela do Agente VIP — numa tag
+   <style> que o ui/agent-vip.js INJETA no head em tempo de execução.
+   Essa última é o caso decisivo: por entrar depois de todas as folhas, empatar
+   em `!important` não basta, quem chega por último ganha. Daí o `html`/`html
+   body` na frente de cada seletor — ele quebra o empate pela especificidade e
+   torna o resultado independente da ordem de carregamento.
+
+   Isto NÃO é licença para escrever o resto do arquivo assim. Vale só aqui,
+   onde existe um !important comprovado do outro lado. */
+
+html .chat-scroll-shell {
+  /* `attachment` fica no padrão (scroll): num container que rola, isso prende
+     a arte à caixa do elemento. Com `local` ela desceria junto das mensagens e
+     o núcleo passearia pela tela. */
+  background: var(--chat-canvas,
+    linear-gradient(180deg, rgb(var(--base-1-rgb, 16, 21, 29)), rgb(var(--base-0-rgb, 10, 14, 20)))) !important;
+}
+
+/* O histórico é transparente de propósito: quem pinta é a casca de rolagem. */
+html .chat-log {
+  background: transparent !important;
+}
+
+/* A tela do Agente VIP é o fundo que o usuário mais olha — é onde a missão
+   acontece. O véu dourado da moldura VIP continua por cima, em ::after, para
+   não perder a identidade da aba. */
+html body .av-app {
+  background: var(--chat-canvas,
+    linear-gradient(180deg, rgb(var(--base-1-rgb, 16, 21, 29)), rgb(var(--base-0-rgb, 10, 14, 20)))) !important;
+  position: relative;
+}
+
+html body .av-app::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 100% 0, rgba(232, 181, 62, 0.10), transparent 34%),
+    radial-gradient(circle at 0 20%, rgba(var(--accent-rgb), 0.07), transparent 42%);
+}
+
+html body .av-app > * { position: relative; z-index: 1; }
+
+html body .av-log { background: transparent !important; }
+
+/* Uma vinheta segura a leitura: o texto no topo e no rodapé passava por cima
+   da parte mais movimentada do desenho. */
+.chat-scroll-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(0, 0, 0, 0.26) 0%, transparent 14%,
+    transparent 84%, rgba(0, 0, 0, 0.30) 100%);
+  z-index: 0;
+}
+
+.chat-scroll-shell { position: relative; }
+.chat-scroll-shell > * { position: relative; z-index: 1; }
+
+/* Mesmo motivo do bloco acima: a sidepanel-modern.css pinta `.header` com
+   !important lá pelas 9700 linhas. */
+html .header {
+  background: var(--header-canvas,
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0.10), rgba(var(--accent-rgb), 0.02))) !important;
+  overflow: hidden;
+}
+
+/* A malha do cabeçalho não pode encostar no nome. Um véu curto, só atrás do
+   bloco do logo, mantém a marca legível em qualquer cor — inclusive nas
+   claras (snow, silver), onde o traço competia de frente com a palavra. */
+.logo-container {
+  position: relative;
+  z-index: 1;
+}
+
+.logo-container::before {
+  content: '';
+  position: absolute;
+  inset: -6px -18px;
+  background: radial-gradient(ellipse 62% 76% at 50% 52%,
+    rgba(var(--base-0-rgb, 10, 14, 20), 0.82), transparent 76%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ═══ 5. RAIO E ESFERA ═════════════════════════════════════════════════════
+   As duas artes fotográficas do produto. Ambas entram como MÁSCARA, nunca como
+   imagem colorida: o arquivo guarda só a forma (branco onde há raio,
+   transparente no resto) e a cor vem do tema. É por isso que elas funcionam
+   nos dezesseis temas e em qualquer marca white-label sem uma segunda versão
+   do arquivo — o mesmo princípio dos fundos gerados.
+
+   A cor é --brand-contrast: a matiz do tema girada 180°. Em âmbar o raio sai
+   azul, em magenta sai verde. Contraste é o que faz o raio SALTAR do
+   cabeçalho; na cor do próprio tema ele viraria mais uma mancha do fundo.
+
+   Crédito: raios por vectorpocket / Freepik (freepik.com). A licença gratuita
+   exige essa atribuição; a premium, não. Ver docs/CREDITOS.md. */
+
+/* O raio é ancorado na PALAVRA, não no bloco do logo. Ancorado no bloco, ele
+   se referia a uma caixa que inclui o "DEVS" embaixo — o centro geométrico
+   caía abaixo das letras e nenhuma porcentagem acertava de forma estável,
+   porque a altura do bloco muda com a marca do revendedor. Preso à palavra,
+   `top: 46%` é sempre o meio óptico dela, em qualquer nome. */
+html .logo-glitch {
+  position: relative;
+}
+
+/* ── O raio saiu do cabeçalho (3.7.2) ───────────────────────────────────────
+   O raio cruzando o nome foi construído e recusado na revisão: com a marca em
+   destaque, ele sujava a leitura em vez de reforçá-la. Ficou feio, e feio é
+   motivo suficiente.
+
+   O ARQUIVO continua no pacote (icons/brand-bolt.png) e a esfera elétrica do
+   chat, que usa o mesmo princípio de máscara, continua no ar — só a arte do
+   cabeçalho saiu. Os dois pseudo-elementos de .logo-glitch voltam a ficar
+   livres, como estavam antes (sidepanel.css já os desliga).
+
+   Para reaver: era uma cópia atrás (z-index 0) e outra à frente (z-index 2)
+   recortada em faixas com mask-composite, com as letras em z-index 1 no meio.
+   Está no histórico do git, não precisa ser redescoberto. */
+
+/* A esfera elétrica marca o centro da conversa. Opacidade baixa de propósito:
+   ela é presença, não ilustração — se disputar com o texto, está errada. */
+html .chat-scroll-shell::after,
+html body .av-app::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(86%, 420px);
+  aspect-ratio: 1;
+  pointer-events: none;
+  z-index: 0;
+  -webkit-mask-image: url('../icons/brand-orb.png');
+          mask-image: url('../icons/brand-orb.png');
+  -webkit-mask-size: contain;
+          mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  background: radial-gradient(circle at 50% 50%,
+    #ffffff 0%,
+    rgb(var(--brand-contrast-rgb)) 34%,
+    rgb(var(--accent-rgb)) 100%);
+  mix-blend-mode: screen;
+  opacity: 0.24;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lgy-dock .os-nav__item,
+  .lgy-modal__close,
+  .chat-quick-actions__btn,
+  .boost-btn,
+  .lgy-skill__btn {
+    transition: none;
+  }
+}
+
+/* ═══ 5. RENOVAÇÃO DENTRO DA EXTENSÃO ═══════════════════════════════════════
+   As telas de renovação nascem por cima da tela de licença — é lá que o
+   cliente cai quando a validade acaba. Por isso elas herdam os tokens --lc-*
+   (a paleta que o próprio usuário escolhe nos seletores de cor daquela tela) e
+   não os tokens do painel: duas paletas empilhadas na mesma tela é o tipo de
+   detalhe que faz um checkout parecer golpe.
+
+   z-index acima de .lic-dialog (100002): o diálogo de "licença expirada" pode
+   já estar montado quando a renovação assume. */
+
+.lgy-renew {
+  position: fixed;
+  inset: 0;
+  z-index: 100003;
+  display: flex;
+  /* flex-start + margin:auto no card: centraliza quando sobra espaço e NÃO
+     corta o topo quando falta. Com align-items:center, um card mais alto que a
+     janela tem a cabeça cortada e o usuário não consegue rolar até ela — era o
+     que acontecia no painel estreito com o checkout inteiro na tela. */
+  align-items: flex-start;
+  justify-content: center;
+  padding: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: rgba(0, 0, 0, .82);
+}
+
+.lgy-renew__card {
+  width: 100%;
+  max-width: 320px;
+  margin: auto;
+  background: var(--lc-card-bg, #0b0e18);
+  border: 1px solid rgba(var(--lc-accent-rgb, 0, 184, 255), .18);
+  border-radius: 16px;
+  padding: 22px 18px 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .6);
+  text-align: center;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.lgy-renew__badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .14em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: rgb(var(--lc-accent-rgb, 0, 184, 255));
+  background: rgba(var(--lc-accent-rgb, 0, 184, 255), .08);
+  border: 1px solid rgba(var(--lc-accent-rgb, 0, 184, 255), .20);
+  margin-bottom: 12px;
+}
+.lgy-renew__badge--ok {
+  color: #00e5a0;
+  background: rgba(0, 229, 160, .08);
+  border-color: rgba(0, 229, 160, .22);
+}
+
+.lgy-renew__title {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  color: var(--lc-text, #e6edf7);
+  margin: 0 0 8px;
+}
+
+.lgy-renew__text {
+  font-size: 10.5px;
+  line-height: 1.65;
+  color: var(--lc-text-muted, #8a93a8);
+  margin: 0 0 14px;
+}
+
+.lgy-renew__hint {
+  font-size: 10px;
+  line-height: 1.55;
+  color: var(--lc-text-muted, #8a93a8);
+  margin: 10px 0 0;
+  min-height: 1em;
+}
+.lgy-renew__hint--erro { color: #ff8090; }
+
+/* ── Planos ── */
+.lgy-renew__planos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.lgy-renew__plano {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, .02);
+  border: 1px solid rgba(255, 255, 255, .07);
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.lgy-renew__plano:hover { border-color: rgba(var(--lc-accent-rgb, 0, 184, 255), .30); }
+.lgy-renew__plano.is-active {
+  border-color: rgba(var(--lc-accent-rgb, 0, 184, 255), .55);
+  background: rgba(var(--lc-accent-rgb, 0, 184, 255), .08);
+}
+.lgy-renew__plano-nome  { font-size: 10px; font-weight: 800; letter-spacing: .05em; color: var(--lc-text, #e6edf7); }
+.lgy-renew__plano-preco { font-size: 14px; font-weight: 900; color: rgb(var(--lc-accent-rgb, 0, 184, 255)); }
+.lgy-renew__plano-prazo { font-size: 9px; color: var(--lc-text-muted, #8a93a8); }
+
+/* ── Entradas e botões ── */
+.lgy-renew__input {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  background: rgba(0, 0, 0, .28);
+  color: var(--lc-text, #e6edf7);
+  font-family: inherit;
+  font-size: 11px;
+}
+.lgy-renew__input:focus {
+  outline: none;
+  border-color: rgba(var(--lc-accent-rgb, 0, 184, 255), .40);
+}
+
+.lgy-renew__btn {
+  width: 100%;
+  padding: 11px;
+  margin-bottom: 6px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .10em;
+  color: var(--lc-bg, #060810);
+  background: linear-gradient(135deg,
+    rgb(var(--lc-accent-rgb, 0, 184, 255)),
+    color-mix(in srgb, rgb(var(--lc-accent-rgb, 0, 184, 255)) 55%, #000));
+  transition: box-shadow .2s ease, opacity .2s ease;
+}
+.lgy-renew__btn:hover:not(:disabled) { box-shadow: 0 5px 16px rgba(var(--lc-accent-rgb, 0, 184, 255), .24); }
+.lgy-renew__btn:disabled { opacity: .45; cursor: default; }
+.lgy-renew__btn--ghost {
+  background: transparent;
+  color: var(--lc-text-muted, #8a93a8);
+  border: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: none;
+}
+.lgy-renew__btn--ghost:hover { color: var(--lc-text, #e6edf7); border-color: rgba(255, 255, 255, .16); }
+
+/* ── PIX ── */
+.lgy-renew__pix:not(:empty) { margin: 10px 0 4px; }
+.lgy-renew__qr {
+  width: 100%;
+  max-width: 190px;
+  border-radius: 10px;
+  background: #fff;
+  padding: 6px;
+  margin-bottom: 8px;
+}
+.lgy-renew__codigo {
+  width: 100%;
+  resize: none;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  background: rgba(0, 0, 0, .32);
+  color: var(--lc-text-muted, #8a93a8);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  line-height: 1.4;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+/* ── Resumo / comprovante ── */
+.lgy-renew__resumo {
+  text-align: left;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .07);
+  background: rgba(255, 255, 255, .02);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.lgy-renew__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 10px;
+}
+.lgy-renew__rowlabel { color: var(--lc-text-muted, #8a93a8); }
+.lgy-renew__rowvalue { color: var(--lc-text, #e6edf7); font-weight: 700; text-align: right; }
+
+/* ── Rotação ── */
+.lgy-renew__progress {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .07);
+  overflow: hidden;
+  margin: 4px 0 10px;
+}
+.lgy-renew__progressfill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: rgb(var(--lc-accent-rgb, 0, 184, 255));
+  transition: width 5s linear;
+}
+
+.lgy-renew__loader {
+  width: 26px;
+  height: 26px;
+  margin: 6px auto 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--lc-accent-rgb, 0, 184, 255), .18);
+  border-top-color: rgb(var(--lc-accent-rgb, 0, 184, 255));
+  animation: lgyRenewSpin .8s linear infinite;
+}
+@keyframes lgyRenewSpin { to { transform: rotate(360deg); } }
+
+/* ── Faixa de aviso: uma CAMADA, não um cartaz flutuante ──────────────────
+   Era `position: fixed` no topo e caía POR CIMA dos controles do cabeçalho —
+   o aviso tapava justamente os botões que a pessoa usaria para agir. Agora
+   entra como primeiro filho da casca e empurra o resto para baixo, como um
+   comunicado que ocupa o próprio espaço.
+
+   Vermelho, e não âmbar: âmbar é o tom de "atenção", e a interface já usa
+   âmbar em meia dúzia de estados normais. Licença acabando é a única coisa que
+   interrompe o trabalho de verdade — precisa de um tom que não se confunda com
+   mais nada. */
+.lgy-renew-aviso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 70, 90, 0.30);
+  background: linear-gradient(180deg, rgba(255, 60, 80, 0.16), rgba(255, 60, 80, 0.07));
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #ff8f9d;
+  flex-shrink: 0;
+}
+
+.lgy-renew-aviso__texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.lgy-renew-aviso__texto strong {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #ff6b7f;
+}
+.lgy-renew-aviso__texto span {
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: rgba(255, 180, 190, 0.72);
+}
+
+.lgy-renew-aviso__btn {
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 90, 110, 0.45);
+  background: rgba(255, 60, 80, 0.18);
+  color: #ff9aa8;
+  border-radius: 8px;
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--speed372) var(--ease372);
+}
+.lgy-renew-aviso__btn:hover { background: rgba(255, 60, 80, 0.30); }
+
+.lgy-renew-aviso__fechar {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  padding: 0 2px;
+}
+.lgy-renew-aviso__fechar:hover { opacity: 1; }
+
+/* Painel estreito: o texto de apoio sai e sobra o essencial. */
+@media (max-width: 380px) {
+  .lgy-renew-aviso__texto span { display: none; }
+  .lgy-renew-aviso { padding: 8px 10px; gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lgy-renew__progressfill { transition: none; }
+  .lgy-renew__loader { animation: none; }
+}
+
+/* ═══ 6. O GESTO DA JANELA SOLTA ════════════════════════════════════════════
+   Redimensionar a janela flutuante engasgava: a moldura acompanhava o cursor
+   (é uma div vazia, barata) mas o miolo arrastava atrás, e a sensação era de
+   produto mal-acabado.
+
+   Duas causas, e as duas precisavam cair. A primeira era JS — quatro gatilhos
+   disparando o mesmo recálculo responsivo por evento — e já está resolvida em
+   sidepanel.js (LEGACY-GESTO-372). A segunda é PINTURA, e é esta folha que
+   resolve.
+
+   O painel tem ~25 `backdrop-filter: blur(...)`, o maior com raio de 20px.
+   Blur de fundo é a propriedade mais cara que existe num redimensionamento:
+   diferente de uma cor ou de uma borda, ele não é pintado uma vez e
+   reaproveitado. A cada mudança de geometria o navegador precisa rasterizar
+   tudo que está ATRÁS do elemento, rodar o desfoque sobre aquela região e
+   recompor — e repetir no quadro seguinte. Com meia dúzia de superfícies de
+   vidro empilhadas, isso sozinho estoura o orçamento do quadro.
+
+   É exatamente a armadilha da sombra de 64px que o floating.js já desliga
+   durante o gesto. A diferença é que aquela regra vive no Shadow DOM da
+   moldura e NÃO alcança aqui dentro: o painel é outro documento, dentro de um
+   iframe de outra origem. Por isso o aviso vem por postMessage e vira este
+   atributo.
+
+   Enquanto o gesto dura, o vidro vira superfície opaca. O olho não repara —
+   a janela está em movimento — e ao soltar tudo volta no mesmo quadro em que
+   o recálculo responsivo roda a passada final.
+
+   `!important` não é preguiça: sidepanel-cyber.css declara vários destes blurs
+   com `!important`, e sem ele a regra perde a disputa justamente nas
+   superfícies maiores, que são as caras. */
+
+html[data-gesto="1"] *,
+html[data-gesto="1"] *::before,
+html[data-gesto="1"] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  /* `filter` entra pelo mesmo motivo, e faltava: há 23 `filter: blur(...)` no
+     pacote — até blur(20px), o mesmo raio do backdrop mais caro. Um blur de
+     filtro força renderização fora da tela e uma convolução a cada repinte,
+     exatamente como o de fundo. Cobrir um e deixar o outro era pagar metade da
+     conta achando que tinha pago tudo.
+
+     `none` leva junto os `drop-shadow` de ícone, que é aceitável: o gesto dura
+     algumas centenas de milissegundos e a janela está em movimento. */
+  filter: none !important;
+  -webkit-filter: none !important;
+  animation-play-state: paused !important;
+  transition-duration: 0s !important;
+}
+
+/* As camadas de efeito (FX) animam opacidade em tela cheia o tempo todo. Fora
+   do gesto elas são baratas — `contain: strict` + composição. Durante o gesto
+   elas competem por quadros com o layout do painel inteiro, e cada quadro que
+   elas tomam é um tranco que o usuário vê. Pausar é invisível: são respiros
+   lentos, de 8 a 10 segundos. Só a camada de fundo — spinner congelado no meio
+   de um gesto pareceria travamento de verdade. */
+html[data-gesto="1"] .app-shell::before {
+  animation-play-state: paused !important;
+}
+
+/* Janela nativa: perfil de composição estático. Trocar este atributo durante
+   o arraste invalida milhares de regras; por isso ele nasce uma vez no boot e
+   permanece. Fundos opacos já existem em todas as superfícies, então retirar
+   blur não deixa transparência nem altera a funcionalidade. */
+html[data-detached-window="1"] body *,
+html[data-detached-window="1"] body [id] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  -webkit-filter: none !important;
+  animation: none !important;
+  animation-delay: 0s !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+  will-change: auto !important;
+}
+
+html[data-detached-window="1"] body *::before,
+html[data-detached-window="1"] body *::after,
+html[data-detached-window="1"] body [id]::before,
+html[data-detached-window="1"] body [id]::after {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  animation: none !important;
+  transition: none !important;
+  will-change: auto !important;
+}
+
+html[data-detached-window="1"] body::before,
+html[data-detached-window="1"] body::after,
+html[data-detached-window="1"] .app-shell::before,
+html[data-detached-window="1"] .app-shell::after {
+  animation: none !important;
+}
+
+/* O DWM recompõe estas camadas do tamanho da janela a cada pixel do arraste.
+   Na superfície solta elas são retiradas; controles e estados permanecem. */
+html[data-detached-window="1"] body::before,
+html[data-detached-window="1"] body::after,
+html[data-detached-window="1"] .header::before,
+html[data-detached-window="1"] .header::after,
+html[data-detached-window="1"] .action-sidebar__panel::before,
+html[data-detached-window="1"] .action-sidebar__panel::after,
+html[data-detached-window="1"] .os-main::before,
+html[data-detached-window="1"] .os-main::after,
+html[data-detached-window="1"] .status-panel::before,
+html[data-detached-window="1"] .status-panel::after,
+html[data-detached-window="1"] .chat-scroll-shell::before,
+html[data-detached-window="1"] .chat-scroll-shell::after,
+html[data-detached-window="1"] .input-card::before,
+html[data-detached-window="1"] .input-card::after,
+html[data-detached-window="1"] .footer::before,
+html[data-detached-window="1"] .footer::after,
+html[data-detached-window="1"] .page-shell__workspace::before,
+html[data-detached-window="1"] .page-shell__workspace::after {
+  display: none !important;
+  content: none !important;
+}
+
+html[data-detached-window="1"] .app-shell,
+html[data-detached-window="1"] .app-shell__body,
+html[data-detached-window="1"] .os-main,
+html[data-detached-window="1"] .chat-scroll-shell {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+html[data-detached-window="1"] .header,
+html[data-detached-window="1"] .action-sidebar__panel,
+html[data-detached-window="1"] .os-main,
+html[data-detached-window="1"] .status-panel,
+html[data-detached-window="1"] .input-card,
+html[data-detached-window="1"] .footer {
+  background-image: none !important;
+  background-color: rgb(8, 14, 28) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18) !important;
+}
+
+/* ═══ 7. O RESPIRO DO DOCK ══════════════════════════════════════════════════
+   A borda arredondada do dock estava COLADA na base do cabeçalho: o corpo do
+   painel tinha `padding: 0 5px 5px` — cinco pixels à esquerda, à direita e
+   embaixo, e ZERO em cima. O resultado é a "bordinha junta": um canto de 10px
+   de raio encostando numa linha reta, que o olho lê como erro de montagem, não
+   como decisão.
+
+   A correção não é igualar os quatro lados — isso devolveria a simetria mole
+   que o dono já recusou. É dar um ritmo com MOTIVO:
+
+     • em cima, o maior respiro (9px): é ali que o dock se separa do
+       cabeçalho, e separação precisa de ar para ser lida como separação;
+     • nas laterais, o menor (5px, como já era): o dock encosta nas bordas de
+       propósito, é uma faixa que atravessa o painel de ponta a ponta;
+     • embaixo, o intermediário (6px): o dock PERTENCE ao conteúdo que ele
+       navega, então fica mais perto dele do que do cabeçalho.
+
+   Três medidas diferentes, cada uma justificada pela relação daquele lado —
+   assimetria organizada, e não quatro números iguais. */
+
+/* O `!important` é obrigatório aqui, não é preguiça: `sidepanel-cyber.css`
+   declara `.app-shell__body { padding: 0 5px 5px !important }`. Mesma
+   especificidade (0,1,0) que esta regra — sem o `!important` a declaração dela
+   vence por ser importante, e esta folha ser a última na cascata não muda nada.
+   Com ele, empatam em importância e especificidade, e aí sim a ordem decide. */
+.app-shell__body {
+  padding-top: var(--gap372-md) !important;
+}
+
+.lgy-dock {
+  margin-bottom: var(--gap372-sm);
+}
+
+
+/* ═══ 8. A CHAVE NA MÃO DO CLIENTE ══════════════════════════════════════════
+   O primeiro pagamento de verdade expôs o pior defeito possível deste fluxo:
+   o cliente pagou, recebeu um comprovante SEM a licença e ficou sem nada para
+   inserir, sem saber qual era a chave nova e sem caminho de suporte.
+
+   Este bloco existe para que isso não se repita. A chave é o elemento de maior
+   peso visual de toda tela de sucesso — vem antes dos detalhes, é selecionável
+   com o cursor E tem botão de copiar, porque quem acabou de pagar não está com
+   paciência de descobrir como se copia. */
+
+.lgy-renew__chavelabel {
+  display: block;
+  margin: 4px 0 5px;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: rgba(var(--lc-accent-rgb, 0, 184, 255), 0.75);
+}
+
+.lgy-renew__chave {
+  border: 1px dashed rgba(var(--lc-accent-rgb, 0, 184, 255), 0.42);
+  background: rgba(var(--lc-accent-rgb, 0, 184, 255), 0.07);
+  border-radius: 10px;
+  padding: 10px 8px;
+  margin-bottom: 8px;
+}
+
+.lgy-renew__chavetxt {
+  display: block;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+  color: var(--lc-text, #e6edf7);
+  /* Quebra em qualquer ponto: a chave tem 30+ caracteres sem espaço e, sem
+     isto, ela estoura o card no painel estreito. */
+  word-break: break-all;
+  -webkit-user-select: all;
+          user-select: all;
+}
+
+.lgy-renew__btn--copy {
+  background: rgba(var(--lc-accent-rgb, 0, 184, 255), 0.16);
+  color: rgb(var(--lc-accent-rgb, 0, 184, 255));
+  border: 1px solid rgba(var(--lc-accent-rgb, 0, 184, 255), 0.40);
+}
+.lgy-renew__btn--copy:hover:not(:disabled) {
+  background: rgba(var(--lc-accent-rgb, 0, 184, 255), 0.26);
+}
+
+/* O aviso de privacidade fica junto do campo que ele explica. Solto no rodapé
+   ele viraria letra miúda de contrato — aqui ele responde a pergunta no
+   instante em que ela aparece. */
+.lgy-renew__seguranca {
+  margin: 2px 0 10px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(0, 229, 160, 0.06);
+  border: 1px solid rgba(0, 229, 160, 0.16);
+  font-size: 9px;
+  line-height: 1.5;
+  color: rgba(150, 235, 205, 0.85);
+  text-align: left;
+}
+
+/* O comprovante é mais alto que as outras telas: ganha um respiro maior entre
+   blocos para não virar uma parede de texto. */
+.lgy-renew__card--recibo .lgy-renew__resumo { padding: 11px 12px; }
+.lgy-renew__row.is-forte .lgy-renew__rowvalue {
+  color: rgb(var(--lc-accent-rgb, 0, 184, 255));
+  font-weight: 900;
+}
+
+/* Painel muito baixo: o card encosta nas bordas e rola por dentro, em vez de
+   ficar com a cabeça cortada. */
+@media (max-height: 620px) {
+  .lgy-renew { padding: 8px; }
+  .lgy-renew__card { padding: 16px 14px 12px; }
+  .lgy-renew__qr { max-width: 150px; }
+}
+
+/* Os controles do aviso precisam vencer os botões transparentes de temas e
+   white-label. Esta é a última folha realmente carregada pelo painel. */
+.chat-entry--quota-warning .prompt-cost-warning__actions { display:flex !important; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.chat-entry--quota-warning .prompt-cost-warning__actions > button.prompt-cost-warning__back,
+.chat-entry--quota-warning .prompt-cost-warning__actions > button.prompt-cost-warning__continue {
+  display:inline-flex !important; flex:1 1 150px; min-height:38px; align-items:center; justify-content:center;
+  padding:9px 12px !important; border-radius:9px !important; font-family:var(--font-ui,Inter,sans-serif) !important;
+  font-size:10px !important; font-weight:900 !important; line-height:1.1 !important; text-align:center;
+  text-shadow:none !important; -webkit-text-fill-color:currentColor !important; opacity:1 !important;
+}
+.chat-entry--quota-warning .prompt-cost-warning__actions > button.prompt-cost-warning__back {
+  border:1px solid #68cef8 !important; background:#123c57 !important; color:#f4fbff !important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.10),0 5px 14px rgba(0,0,0,.3) !important;
+}
+.chat-entry--quota-warning .prompt-cost-warning__actions > button.prompt-cost-warning__continue {
+  border:1px solid #ffe08a !important; background:linear-gradient(135deg,#ffdc67,#f18a28) !important; color:#1b1000 !important;
+  box-shadow:0 6px 18px rgba(242,138,40,.34) !important;
+}
+.chat-entry--quota-warning .prompt-cost-warning__actions > button:disabled { opacity:.7 !important; cursor:wait; }
+
+/* A regra global prende o chat; a página longa de Skills precisa de rolagem. */
+.os-page--skills.is-active { height:100%; min-height:0; overflow-x:hidden !important; overflow-y:auto !important; overscroll-behavior:contain; }
+.os-page--skills.is-active .lgy-skills { min-height:100%; overflow:visible; padding-bottom:24px; }
